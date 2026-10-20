@@ -1,0 +1,90 @@
+name: Build unsigned iOS IPA
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-unsigned-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  GOPROXY: https://proxy.golang.org,direct
+  GOSUMDB: sum.golang.org
+  FLUTTER_VERSION: '3.47.4'
+  FLUTTER_REVISION: '9584c6713b324636289d067944a46fd6b49df14b'
+
+jobs:
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - name: Install pinned Flutter SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --quiet --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$RUNNER_TEMP/flutter"
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse HEAD)" = "$FLUTTER_REVISION"
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/flutter/bin/flutter" config --no-analytics
+          "$RUNNER_TEMP/flutter/bin/flutter" precache --ios
+      - name: Inspect build tools
+        run: |
+          flutter --version
+          go version
+          xcodebuild -version
+          pod --version
+      - name: Check packaging helpers
+        run: python3 -m unittest discover -s scripts -p 'test_ios_ipa.py'
+      - name: Build all-source unsigned device app
+        run: python3 scripts/build_ios.py --all-sources
+      - name: Verify IPA and record provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_ios_ipa.py dist/ios/*-ios-unsigned.ipa --all-sources --output dist/ios/ipa-metadata.json
+          python3 - <<'PY'
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          from app_build import BuildVariant
+          config = Path('ios/Flutter/Generated.xcconfig').read_text()
+          encoded = next(line.split('=', 1)[1] for line in config.splitlines() if line.startswith('DART_DEFINES='))
+          if not BuildVariant.from_dart_defines(encoded).all_sources:
+              raise SystemExit('Generated Xcode configuration is not ALL_SOURCES=true')
+          PY
+          xcrun lipo -info build/ios/iphoneos/Runner.app/Runner
+          (cd dist/ios && shasum -a 256 *-ios-unsigned.ipa > SHA256SUMS.txt)
+          {
+            echo "Commit: $GITHUB_SHA"
+            echo "Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "Dart: ALL_SOURCES=true"
+            echo "Go: -X duanjuapp/native/core.buildAllSources=true"
+            flutter --version
+            go version
+            xcodebuild -version
+          } > dist/ios/build-provenance.txt
+          cat dist/ios/ipa-metadata.json >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zhenguojian-ios-unsigned-${{ github.run_id }}
+          path: |
+            dist/ios/*-ios-unsigned.ipa
+            dist/ios/SHA256SUMS.txt
+            dist/ios/ipa-metadata.json
+            dist/ios/build-provenance.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
