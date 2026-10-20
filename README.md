@@ -4,7 +4,7 @@
 
 Flutter 多端独立短剧 / 影视应用，原名「短剧库 APP」。站源请求、解析、下载和播放均在设备上完成，不依赖自建服务。当前源码版本：**0.2.65+72**（开发快照，未完成真机验收）。
 
-本轮基于 0.2.64+71 增加独立的全站源 iOS 未签名 IPA 云端构建，修复 IPA 的 `Payload/Runner.app` 顶层结构，并核对设备版 ARM64、应用名称、版本及最低 iOS 版本。默认可见站源顺序为：**红果 → 韩小圈 → 鬼片 → 青空**。
+本轮基于 0.2.64+71 增加独立的全站源 iOS 未签名 IPA 云端构建，修复 IPA 的 `Payload/Runner.app` 顶层结构，并用固定 Flutter 3.47.4 补齐视频播放依赖锁文件。2026-10-20 已成功构建并核对设备版 ARM64、应用名称、版本及最低 iOS 版本；签名安装、播放和后台行为仍待真机验收。默认可见站源顺序为：**红果 → 韩小圈 → 鬼片 → 青空**。
 
 > 说明：应用长期按「只维护源码与定向测试，集中验证另行安排」的方式推进。未完成集中验证与真机验收的项目保持未验收状态；历史版本的检查记录不能作为后续新增功能的验收结论。
 
@@ -70,7 +70,7 @@ Flutter 多端独立短剧 / 影视应用，原名「短剧库 APP」。站源�
 | Android 8.0+ | 三架构（arm64-v8a / armeabi-v7a / x86_64）APK；同一签名可覆盖升级 |
 | Windows 10/11 x64 | 完整 ZIP 解压后运行 `hongguojian.exe` / `zhenguojian.exe`，保留所有 DLL 与 `data`；局域网原生发现依赖 Windows 10 1903+ |
 | Android TV | 与手机共用源码，自动识别电视模式并保持横屏；待电视 / 盒子实机验收 |
-| iOS 15.1+ | 提供全站源 ARM64 未签名 IPA 构建流程；iOS 播放页禁用 media_kit_video 硬件纹理加速以规避 libmpv 渲染崩溃；云端构建结果以 Actions 记录为准，签名安装、播放及后台行为仍待 iPhone 真机验收 |
+| iOS 15.1+ | 0.2.65+72 全站源 ARM64 未签名 IPA 已于 2026-10-20 云端构建成功，并在 Windows 核对归档和设备二进制；iOS 播放页禁用 media_kit_video 硬件纹理加速以规避 libmpv 渲染崩溃；签名安装、播放及后台行为仍待 iPhone 真机验收 |
 
 `INSTALL_FAILED_NO_MATCHING_ABIS` 表示 APK 与设备架构不匹配，请更换对应架构安装包。
 
@@ -82,11 +82,19 @@ Flutter 多端独立短剧 / 影视应用，原名「短剧库 APP」。站源�
 | --- | --- |
 | `zhenguojian-ios-unsigned-{run_id}` | 未签名设备版 IPA、SHA256、`ipa-metadata.json` 和 `build-provenance.txt`；保留 30 天 |
 
+已完成构建：[运行 39385981276](https://github.com/wq137469537/guoapp/actions/runs/39385981276) · [下载产物](https://github.com/wq137469537/guoapp/actions/runs/39385981276/artifacts/12248225111)。IPA 来源提交为 `2afdd3d68806cdadc314e8315f51147442ec5df5`，本构建记录及后续文档提交不属于该 IPA 的打包来源。Actions 产物于 2026-11-19 07:27:45 UTC 过期，需在此前下载保存。
+
+文件 `zhenguojian-0.2.65+72-ios-unsigned.ipa`，30,392,140 字节；应用标识 `com.duanju.duanjuApp`，最低 iOS 15.1，架构 ARM64，平台 iPhoneOS。已核对 ZIP CRC、Payload 层级、Info.plist、未加密设备主程序、Flutter / App framework 及根应用无签名 / 描述文件；构建记录确认 Dart 与 Go 均启用全站源。SHA256：
+
+~~~text
+d9477b50f7ef4e2d721195c252d1a0b3d3dd4dba97227835120f87bc3cade1a2
+~~~
+
 下载 Actions 产物 ZIP 后先解压，取出 `zhenguojian-*-ios-unsigned.ipa`，再导入 iPhone 的签名工具（如用户已有的“万能签”），使用自己的有效签名材料签名安装。产物 ZIP 不是 IPA；未签名 IPA 不能直接安装。证书、描述文件、设备与系统版本是否适用取决于用户的签名方法。
 
 七个指定站源（黄豆、剧果、野果、帝果、黄果视频、黄果 AI、黄果旧版）包含在此构建中，默认隐藏，仍须在应用内解锁；保留已有用户权限和源站 VIP / 授权限制。编译包含不等于源站在线可用，云端构建不访问站源图片，也不代表真机验收通过。
 
-原 **Build app packages** 的自动 push / PR / tag 触发已移除，避免本 Fork 的 iOS 配置提交触发 Android 构建和 Release。该旧流程仍有手动入口，运行会构建 Android 并发布 Release，不用于本次 iOS 交付。
+原 **Build app packages** 的自动 push / PR / tag 触发已移除，且已在本 Fork 中禁用，避免本次 iOS 工作触发 Android 构建和 Release。该旧流程保留手动定义，重新启用并运行会构建 Android 并发布 Release，不用于本次 iOS 交付。
 
 Android 正式发布使用同一签名并递增构建号，在仓库 Secrets 配置：`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`。未配置时生成 debug 签名预览包。
 

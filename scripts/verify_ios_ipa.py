@@ -80,12 +80,14 @@ def verify_ipa(path, variant, version):
         for framework in ['App', 'Flutter']:
             if application + f'Frameworks/{framework}.framework/{framework}' not in names:
                 raise ValueError('Missing required Flutter framework: ' + framework)
+    digest = hashlib.sha256()
     with path.open('rb') as stream:
-        digest = hashlib.file_digest(stream, 'sha256').hexdigest()
+        for chunk in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(chunk)
     return {
         'file': path.name,
         'bytes': path.stat().st_size,
-        'sha256': digest,
+        'sha256': digest.hexdigest(),
         'app_name': info['CFBundleDisplayName'],
         'bundle_identifier': info['CFBundleIdentifier'],
         'version': version,
